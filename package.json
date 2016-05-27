@@ -31,7 +31,7 @@
     "hat": "0.0.x",
     "lodash": "3.10.x",
     "minimist": "1.x.x",
-    "needle": "0.x.x",
+    "needle": "https://github.com/jaruba/needle/tarball/master",
     "parse-torrent": "5.x.x",
     "peer-search": "git://github.com/Ivshti/peer-search",
     "q": "^1.4.1",
