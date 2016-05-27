@@ -1,20 +1,25 @@
 module.exports = {
 	"logLevel": 1,
-	"trackers": ["udp://tracker.leechers-paradise.org:6969/announce", "udp://tracker.coppersurfer.tk:6969/announce"],
-	"trackerTimeout": 3000, 
-	"fetchMetaTimeout": 25000,
-	
-	// Different frm trackers - we have to update seed/leech for each torrents for all trackers, but this is for when we do retriever / fetchTorrent
-	"fetchTorrentTrackers": ["udp://tracker.leechers-paradise.org:6969/announce", "udp://tracker.coppersurfer.tk:6969/announce"],
+	"trackers": [
+		'udp://tracker.coppersurfer.tk:6969',
+	    'udp://tracker.leechers-paradise.org:6969'
+	],
+	"trackerTimeout": 300, 
 
-	"retrieverSources": [
-	    { url: "http://torcache.net/torrent/%s.torrent" },
-	    { url: "http://torrage.com/torrent/%s.torrent" },
-	    //{ url: "http://yts.to/torrent/download/%s.torrent" }
+	// Different frm trackers - we have to update seed/leech for each torrents for all trackers, but this is for when we do retriever / fetchTorrent
+	"fetchTorrentTrackers": [
+		'udp://tracker.coppersurfer.tk:6969',
+	    'udp://tracker.leechers-paradise.org:6969'
+	],
+
+	"downloadSources": [
+	    { url: 'http://torcache.net/torrent/%s.torrent' },
+	    { url: 'http://itorrents.org/torrent/%s.torrent' },
+	    { url: 'http://reflektor.karmorra.info/torrent/%s.torrent' }
 	],
 
 	"processingConcurrency": 6,
-	
+
 	"minSeedToIndex": 4,
 	"minSeedImportant": 200, // if it's important, we'll try to get the meta from the DHT / peers even when caches fail
 
@@ -29,11 +34,10 @@ module.exports = {
 	"excludeTorrents": null,
 	"excludeNonAscii": true,
 
-	"cinemeta": "http://cinemeta.strem.io/stremioget",
-	
-	"stremioAddon": 7000,
+	"cinemeta": "http://stremio-cinemeta.herokuapp.com",
+
 	"stremioSecret": "8417fe936f0374fbd16a699668e8f3c4aa405d9f",
-	"stremioCentral": "http://api9.strem.io",
+	"stremioCentral": "http://api8.herokuapp.com",
 
 	// Tagging system; all tags must be lowercase
 	"tags": {

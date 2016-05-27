@@ -1,4 +1,4 @@
-	var tape = require("tape");
+var tape = require("tape");
 var async = require("async");
 var _ = require("lodash");
 
@@ -8,12 +8,9 @@ var cfg = require("../lib/cfg");
 cfg.dbPath = require("path").join(require("os").tmpdir(), Date.now()+"");
 var log = require("../lib/log");
 var db = require("../lib/db");
-var utils = require("../lib/utils");
 var indexer = require("../lib/indexer");
 var importer = require("../lib/importer");
 var retriever = require("../lib/retriever");
-
-cfg.logLevel = 0;
 
 var hashes = [ ]; // global so we can reuse it
 var movie_ids =  { }; var series_ids = { }; // also global, so we can reuse those 
@@ -42,7 +39,7 @@ tape("importer with dump source", function(t) {
 
 	importer.collect({ url: "http://bitsnoop.com/api/latest_tz.php?t=verified", category: ["tv", "movies"], type: "dump" }, function(err, status) {
 		t.ok(!err, "no err from importer.collect");
-		t.ok(hashesDump.length >= 5, "hashes collected ("+hashesDump.length+") are more than 5");
+		t.ok(hashesDump.length > 5, "hashes collected ("+hashesDump.length+") are more than 5");
 		t.ok(status.type == "dump", "we've collected from a dump")
 		t.end();
 
@@ -85,11 +82,11 @@ tape("importer with dump source - large with minseeders", function(t) {
 tape("retriever", function(t) {
 	t.timeoutAfter(5000);
 
-	// try with 3 hashes, accept 2/6 success rate - some of them are simply not available
+	// try with 3 hashes, accept 2/3 success rate - some of them are simply not available
 	var results = [];
-	async.each(hashes.slice(0,6), function(hash, callback) {
+	async.each(hashes.slice(0,3), function(hash, callback) {
 		retriever.retrieve(hash, function(err, tor) {
-			//if (err) console.error(err);
+			if (err) console.error(err);
 			if (tor) results.push(tor);
 			callback();
 		});
@@ -114,11 +111,11 @@ tape("retriever - catch errors", function(t) {
 tape("retriever - pass url", function(t) {
 	t.timeoutAfter(3000);
 
-	// try with 3 hashes, accept 2/6 success rate - some of them are simply not available
+	// try with 3 hashes, accept 2/3 success rate - some of them are simply not available
 	var results = [ ];
-	async.each(hashes.slice(0,6), function(hash, callback) {
+	async.each(hashes.slice(0,3), function(hash, callback) {
 		retriever.retrieve(hash, { url: "http://torcache.net/torrent/"+hash.toUpperCase()+".torrent" },function(err, tor) {
-			//if (err) console.error(err);
+			if (err) console.error(err);
 			if (tor) results.push(tor);
 			callback();
 		});
@@ -132,13 +129,13 @@ tape("retriever - pass url", function(t) {
 
 
 tape("retriever - fallback to DHT/peers fetching", function(t) {
-	t.timeoutAfter(30000);
+	t.timeoutAfter(20000);
 
 	// try with 3 hashes, accept 3/3 success rate - all metas should be there with peers
 	var results = [ ];
 	async.each(hashes.slice(0,3), function(hash, callback) {
 		retriever.retrieve(hash, { important: true, url: "http://notcache.net/"+hash.toUpperCase()+".torrent" }, function(err, tor) {
-			//if (err) console.error(err);
+			if (err) console.error(err);
 			if (tor) results.push(tor);
 			callback();
 		});
@@ -154,24 +151,21 @@ tape("retriever - fallback to DHT/peers fetching", function(t) {
 // TODO this is extremely primitive
 var mp = require("../cli/multipass");
 var successful = [];
-tape("processor - import torrents", function(t) {
+tape("processor - import torrent", function(t) {
 	t.timeoutAfter(40000); // 40s for 50 torrents
 
 	async.each(hashes.slice(0, 50), function(hash, callback) {
-		mp.processQueue.push({ infoHash: hash, source: { url: "http://torrentz.eu/search?q=" }, callback: function(err, torrent) {
-			//if (err) console.error(err);
-			//if (err) return callback(err);
+		mp.processQueue.push({ infoHash: hash, source: { url: "http://torrentz.eu" }, callback: function(err, torrent) {
+			if (err) console.error(err);
+			if (err) return callback(err);
 			if (torrent) {
-				var maxSeed = utils.getMaxPopularity(torrent);
-
-				t.ok(maxSeed, "popular torrent");
-
 				successful.push(torrent);
 				// Collect those for later tests
-				if (maxSeed) (torrent.files || []).forEach(function(f) {
+				var maxSeed = db.getMaxPopularity(torrent);
+				(torrent.files || []).forEach(function(f) {
 					//console.log(f.imdb_id,f.type)
+					if (maxSeed <= cfg.minSeedToIndex) return; // cleaner?
 					if (f.length < 85*1024*1024) return;
-					if (! f.imdb_id) return;
 					if (f.type == "movie") movie_ids[f.imdb_id] = (movie_ids[f.imdb_id] || 0)+1;
 					if (f.type == "series") series_ids[f.imdb_id] = [f.season,f.episode[0]]; // fill it with season / episode so we can use for testing later
 				});
@@ -211,15 +205,14 @@ tape("db - db.find works with movies", function(t) {
 		t.ok(!err, "no error");
 		t.ok(torrents[0], "has a result");
 		t.ok(torrents.length <= 1, "no more than 1 result");
-		t.ok(torrents[0] && torrents[0].infoHash, "infoHash for result");
-		t.ok(torrents[0] && _.find(torrents[0].files, function(f) { return f.imdb_id == imdb_id }), "we have a file with that imdb_id inside");
+		t.ok(torrents[0].infoHash, "infoHash for result");
+		t.ok(_.find(torrents[0].files, function(f) { return f.imdb_id == imdb_id }), "we have a file with that imdb_id inside");
 		t.end();
 	});
 });
 
 tape("db - db.find works series", function(t) {
 	var imdb_id = Object.keys(series_ids)[0];
-        if (!series_ids[imdb_id]) { t.error(new Error("internal test error - no series")); return t.end(); }
 	var season = series_ids[imdb_id][0], episode = series_ids[imdb_id][1];
 
 	db.find({ imdb_id: imdb_id, season: season, episode: episode }, 1, function(err, torrents) {
@@ -231,13 +224,6 @@ tape("db - db.find works series", function(t) {
 	});
 });
 
-// UNIT TESTS
-// TODO: test db.lookup
-// TODO: test db.forEachMeta
-// TODO: test db.forEachTorrent
-// TODO: test db.count
-// TODO: test db.popularities
-
 /* Addon tests
  */
 var addonPort, addon;
@@ -245,7 +231,7 @@ var addonPort, addon;
 tape("addon - listening on port", function(t) {
 	t.timeoutAfter(500);
 
-	var server = require("../stremio-addon/addon")(db, utils, cfg)().on("listening", function() {
+	var server = require("../stremio-addon/addon")().on("listening", function() {
 		addonPort = server.address().port;
 		t.end();
 	})
@@ -266,29 +252,9 @@ tape("addon - initializes properly", function(t) {
 	});
 });
 
-tape("addon - stats.get", function(t) {
-	t.timeoutAfter(1000);
-
-	addon.call("stats.get", { }, function(err, resp) {
-		t.ok(!err, "no error");
-		t.ok(resp && resp.statsNum, "has statsNum");
-		t.ok(resp && Array.isArray(resp.stats), "has stats");
-		t.end();
-	});
-});
-
-tape("addon - stream.popularities", function(t) {
-	t.timeoutAfter(1000);
-
-	addon.call("stream.popularities", {  }, function(err, resp) {
-		t.ok(!err, "no error");
-		t.ok(resp && resp.popularities && Object.keys(resp.popularities).length, "has popularities");
-		t.end();
-	});
-});
 
 tape("addon - sample query with a movie", function(t) {
-	t.timeoutAfter(1000);
+	t.timeoutAfter(3000);
 
 	var imdb_id = Object.keys(movie_ids)[0];
 
@@ -308,9 +274,7 @@ tape("addon - sample query with a movie", function(t) {
 tape("addon - sample query with a movie - stream.find", function(t) {
 	t.timeoutAfter(3000);
 
-	var imdb_id = _.pairs(movie_ids).sort(function(b,a){ return a[1] - b[1] })[0];
-	if (! imdb_id) { t.error(new Error("internal test error - no movie")); return t.end(); }
-	imdb_id = imdb_id[0];
+	var imdb_id = _.pairs(movie_ids).sort(function(b,a){ return a[1] - b[1] })[0][0];
 
 	addon.stream.find({ query: { imdb_id: imdb_id, type: "movie" } }, function(err, resp) {
 		t.ok(!err, "no error");
@@ -323,7 +287,6 @@ tape("addon - sample query with an episode", function(t) {
 	t.timeoutAfter(3000);
 
 	var imdb_id = Object.keys(series_ids)[0];
-	if (! (imdb_id && series_ids[imdb_id])) { t.error(new Error("internal test error - no series")); return t.end(); }
 	var season = series_ids[imdb_id][0], episode = series_ids[imdb_id][1];
 
 	addon.stream.get({ query: { imdb_id: imdb_id, season: season, episode: episode, type: "series" } }, function(err, resp) {
