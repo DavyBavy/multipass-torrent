@@ -37,7 +37,8 @@
     "q": "^1.4.1",
     "torrent-stream": "^1.0.0",
 	"request": "*",
-	"bencode": "*"
+	"bencode": "*",
+	"lockfile": "1.0.1"
   },
   "devDependencies": {
     "grunt": "^0.4.5",
